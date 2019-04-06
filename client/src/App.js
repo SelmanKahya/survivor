@@ -27,7 +27,8 @@ class Player {
 
     this.ctx.font = '18px comic sans';
     this.ctx.fillStyle = 'black';
-    this.ctx.fillText(this.name, this.x + 10, this.y + 10);
+    this.ctx.textAlign = "center";
+    this.ctx.fillText(this.name, this.x + TILE_WIDTH / 2, this.y + 10);
   };
 };
 
