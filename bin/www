@@ -7,6 +7,7 @@
 var app = require('../app');
 var debug = require('debug')('survivor:server');
 var http = require('http');
+var socketIO = require('socket.io');
 
 /**
  * Get port from environment and store in Express.
@@ -21,6 +22,97 @@ app.set('port', port);
  */
 
 var server = http.createServer(app);
+var io = socketIO(server);
+
+
+
+var Player = function(game, id) {
+  this.game = game;
+  this.id = id;
+  this.name = '';
+  // pozisyon degerleri
+  this.x = Math.floor(Math.random() * 400 + 100);
+  this.y = Math.floor(Math.random() * 300 + 100);
+  this.targetX = this.x;
+  this.targetY = this.y;
+  this.dirx = 0;
+  this.diry = 0;
+  this.type = Math.floor(Math.random() * 3);
+
+  // oyun ici dinamikler
+  this.health = 100;
+  this.coins = 0;
+  this.bullets = 0;
+  this.medkits = 0;
+};
+
+// guncelleme ve ekrana yazdirma
+Player.prototype.update = function update() {
+  this.targetX += this.dirx * 3;
+  this.targetY += this.diry * 3;
+  this.x = this.x + (this.targetX - this.x) * 0.40;
+  this.y = this.y + (this.targetY - this.y) * 0.40;
+};
+
+var Game = function Game(){
+  console.log('init');
+  this.players = [];
+}
+
+Game.prototype.addPlayer = function addPlayer (id) {
+  this.players.push(new Player(this, id));
+}
+
+Game.prototype.update = function update() {
+  for (var m = 0; m < this.players.length; m++) {
+    const player = this.players[m];
+    player.update();
+  }
+};
+
+var game = new Game();
+
+const interval = setInterval(() => {
+  game.update();
+}, 1000 / 60);
+
+const updateInterval = setInterval(() => {
+  io.sockets.emit('PLAYERS_UPDATE', game.players.map(player => ({
+    id: player.id,
+    name: player.name,
+    x: player.x,
+    y: player.y,
+    type: player.type
+  })));
+}, 1000 / 30);
+
+io.on('connection', function (socket) {
+  console.log('user connected! ' + socket.id);
+  game.addPlayer(socket.id);
+  console.log('number of players: ' + game.players.length);
+
+  socket.on('disconnect', function () {
+    // socket.emit('disconnected');
+    game.players = game.players.filter(player => player.id !== socket.id)
+    console.log('user disconnected! ' + socket.id);
+    console.log('number of players: ' + game.players.length);
+  });
+
+  socket.on('PLAYER_DIRECTION_UPDATE', function (data) {
+    const player = game.players.filter(player => player.id === socket.id)
+    if (data.dirx !== undefined)
+      player[0].dirx = data.dirx;
+
+    if (data.diry !== undefined)
+      player[0].diry = data.diry;
+  });
+
+  socket.on('PLAYER_NAME_UPDATE', function (data) {
+    const player = game.players.filter(player => player.id === socket.id)
+    player[0].name = data.name;
+  });
+});
+
 
 /**
  * Listen on provided port, on all network interfaces.

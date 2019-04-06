@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import io from 'socket.io-client';
 import './App.css';
 
 const CANVAS_WIDTH = 640;
@@ -10,43 +11,35 @@ class Player {
   constructor(ctx, game) {
     this.ctx = ctx;
     this.game = game;
-    // pozisyon degerleri
-    this.x = 100;
-    this.y = 100;
-    this.targetX = 100;
-    this.targetY = 100;
-    this.dirx = 0;
-    this.diry = 0;
-
-    // oyun ici dinamikler
-    this.health = 100;
-    this.coins = 0;
-    this.bullets = 0;
-    this.medkits = 0;
-  }
-
-  // guncelleme ve ekrana yazdirma
-  update = () => {
-    this.targetX += this.dirx * 5
-    this.targetY += this.diry * 5
-    this.x = this.x + (this.targetX - this.x) * 0.50;
-    this.y = this.y + (this.targetY - this.y) * 0.50;
+    // TODO serverdan al
+    this.id = 0;
+    this.x = -100;
+    this.y = -100;
+    this.type = 0;
   };
 
   draw = () => {
     this.ctx.drawImage(
-      this.game.images.user0, 0, 0, TILE_WIDTH, TILE_HEIGHT,
+      // TODO user0 > use type to show different skins
+      this.game.images.users[this.type], 0, 0, TILE_WIDTH, TILE_HEIGHT,
       this.x, this.y,
       TILE_WIDTH, TILE_HEIGHT);
+
+    this.ctx.font = '18px comic sans';
+    this.ctx.fillStyle = 'black';
+    this.ctx.fillText(this.name, this.x + 10, this.y + 10);
   };
 };
 
 class Game {
-  constructor(ctx) {
+  constructor(ctx, socket) {
     console.log('init');
+    this.socket = socket;
     this.ctx = ctx;
-
-    this.images = {};
+    this.images = {
+        tiles: {},
+        images: {},
+    };
     this.layers = [
       [
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -59,9 +52,22 @@ class Game {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1
       ]
     ];
-    this.players = [
-      new Player(ctx, this)
-    ];
+    this.players = [];
+
+    socket.on('PLAYERS_UPDATE', (players) => {
+      const newPlayers = [];
+      for (var i = 0; i < players.length; i++) {
+        const newPlayer = new Player(ctx, this);
+        newPlayer.id = players[i].id;
+        newPlayer.name = players[i].name;
+        newPlayer.x = players[i].x;
+        newPlayer.y = players[i].y;
+        newPlayer.type = players[i].type;
+        newPlayers.push(newPlayer);
+        console.log(players[i].type)
+      }
+      this.players = newPlayers;
+    });
   }
 
   init = async () => {
@@ -69,10 +75,20 @@ class Game {
     const tile0 = await this.loadImage('./assets/layers/0.png');
     const tile1 = await this.loadImage('./assets/layers/1.png');
     const user0 = await this.loadImage('./assets/users/0.png');
+    const user1 = await this.loadImage('./assets/users/1.png');
+    const user2 = await this.loadImage('./assets/users/2.png');
+    const user3 = await this.loadImage('./assets/users/3.png');
     this.images = {
-      user0: user0,
-      0: tile0,
-      1: tile1,
+      users: {
+        0: user0,
+        1: user1,
+        2: user2,
+        3: user3,
+      },
+      tiles: {
+        0: tile0,
+        1: tile1,
+      },
     }
 
     window.addEventListener('keydown', this.onKeyDown);
@@ -82,32 +98,32 @@ class Game {
   onKeyDown = event => {
     const keyCode = event.keyCode;
     // LEFT
-    if (keyCode === 37) {
-      this.players[0].dirx = -1;
+    if (keyCode === 65) {
+      this.socket.emit('PLAYER_DIRECTION_UPDATE', { dirx: -1 });
     }
     // RIGHT
-    else if (keyCode === 39) {
-      this.players[0].dirx = 1;
+    else if (keyCode === 68) {
+      this.socket.emit('PLAYER_DIRECTION_UPDATE', { dirx: 1 });
     }
     // UP
-    if (keyCode === 38) {
-      this.players[0].diry = -1;
+    if (keyCode === 87) {
+      this.socket.emit('PLAYER_DIRECTION_UPDATE', { diry: -1 });
     }
     // DOWN
-    else if (keyCode === 40) {
-      this.players[0].diry = 1;
+    else if (keyCode === 83) {
+      this.socket.emit('PLAYER_DIRECTION_UPDATE', { diry: 1 });
     }
   }
 
   onKeyUp = event => {
     const keyCode = event.keyCode;
     // LEFT - right
-    if (keyCode === 37 || keyCode === 39) {
-      this.players[0].dirx = 0;
+    if (keyCode === 65 || keyCode === 68) {
+      this.socket.emit('PLAYER_DIRECTION_UPDATE', { dirx: 0 });
     }
     // UP - down
-    if (keyCode === 38 || keyCode === 40) {
-      this.players[0].diry = 0;
+    if (keyCode === 83 || keyCode === 87) {
+      this.socket.emit('PLAYER_DIRECTION_UPDATE', { diry: 0 });
     }
   }
 
@@ -128,10 +144,10 @@ class Game {
   }
 
   update = () => {
-    for (var m = 0; m < this.players.length; m++) {
-      const player = this.players[m];
-      player.update();
-    }
+    // for (var m = 0; m < this.players.length; m++) {
+    //   const player = this.players[m];
+    //   player.update();
+    // }
   }
 
   draw = () => {
@@ -145,7 +161,7 @@ class Game {
         for (var k = 0; k < cols; k++) {
           const imageType = layer[j * cols + k];
           this.ctx.drawImage(
-            this.images[imageType], 0, 0, TILE_WIDTH, TILE_HEIGHT,
+            this.images.tiles[imageType], 0, 0, TILE_WIDTH, TILE_HEIGHT,
             k * TILE_WIDTH, j * TILE_HEIGHT,
             TILE_WIDTH, TILE_HEIGHT);
         }
@@ -181,8 +197,10 @@ class App extends Component {
   }
 
   start = async () => {
+    var socket = io('http://localhost:5000');
+    socket.emit('PLAYER_NAME_UPDATE', { name: this.state.name });
     if (!this.state.isGameRunning) {
-      this.game = new Game(this.getCtx());
+      this.game = new Game(this.getCtx(), socket);
       await this.game.init();
       this.loop();
     }
@@ -192,9 +210,8 @@ class App extends Component {
   loop = () => {
     requestAnimationFrame(() => {
       const now = Date.now();
-      // if (now - this.lastLoop > (1000 / 30))
-        this.game.update();
-
+      // if (now - this.lastLoop > (1000 / 30)) {
+      this.game.update();
       this.game.draw();
 
       this.lastLoop = Date.now();
@@ -208,11 +225,22 @@ class App extends Component {
   getCtx = () => this.canvasRef.current.getContext('2d');
 
   render() {
+    if ((typeof window.orientation !== "undefined") || (navigator.userAgent.indexOf('IEMobile') !== -1)) {
+      return 'Uzgunum dostum...';
+    }
+
     return (
-      <div style={{height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'black'}}>
-        <button onClick={this.start}>START!</button>
-        <canvas ref={this.canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT}>
-        </canvas>
+      <div style={{height: '100%'}}>
+        {!this.state.isGameRunning ? (
+          <div>
+            <input type="text" onChange={(evt) => this.setState({name: evt.target.value.substring(0, 6).toLowerCase()})} />
+            <button disabled={!this.state.name} onClick={this.start}>START!</button>
+          </div>
+        ) : null}
+        <div style={{height: '100%', display: this.state.isGameRunning ? 'flex' : 'none', justifyContent: 'center', alignItems: 'center', backgroundColor: 'black'}}>
+          <canvas ref={this.canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT}>
+          </canvas>
+        </div>
       </div>
     );
   }
