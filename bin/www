@@ -24,12 +24,24 @@ app.set('port', port);
 var server = http.createServer(app);
 var io = socketIO(server);
 
+var calculateDistance = function calculateDistance(x1, x2, y1, y2) {
+  return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+}
 
+var Coin = function(game) {
+  const numberOfTilesX = game.layers[0][0].length - 4;
+  const numberOfTilesY = game.layers[0].length - 4;
+  this.x = Math.floor((Math.random() * numberOfTilesX * 64) + 128);
+  this.y = Math.floor((Math.random() * numberOfTilesY * 64) + 128);
+  this.collected = false;
+};
 
 var Player = function(game, id) {
   this.game = game;
   this.id = id;
+  this.isDead = false;
   this.name = '';
+  this.health = 100;
   // pozisyon degerleri
   this.x = Math.floor(Math.random() * 400 + 100);
   this.y = Math.floor(Math.random() * 300 + 100);
@@ -44,19 +56,88 @@ var Player = function(game, id) {
   this.coins = 0;
   this.bullets = 0;
   this.medkits = 0;
+
+  this.lastHealthReductionAt = Date.now();
 };
 
 // guncelleme ve ekrana yazdirma
 Player.prototype.update = function update() {
-  this.targetX += this.dirx * 3;
-  this.targetY += this.diry * 3;
-  this.x = this.x + (this.targetX - this.x) * 0.40;
-  this.y = this.y + (this.targetY - this.y) * 0.40;
+  if (this.health < 0) {
+    this.isDead = true;
+  }
+
+  var targetX = this.targetX + this.dirx * 3;
+  var targetY = this.targetY + this.diry * 3;
+
+  if (!this.game.isSolidTile(targetX, targetY)) {
+    this.targetX = targetX;
+    this.targetY = targetY;
+    this.x = this.x + (this.targetX - this.x) * 0.40;
+    this.y = this.y + (this.targetY - this.y) * 0.40;
+  }
+
+  if (!this.isDead) {
+    for (var i = 0; i < this.game.coins.length; i++) {
+      var coin = this.game.coins[i];
+      if (calculateDistance(this.x, coin.x, this.y,coin.y) < 20) {
+        this.coins += 100;
+        coin.collected = true;
+      }
+    }
+
+    this.game.coins = this.game.coins.filter(coin => !coin.collected);
+    var now = Date.now();
+    if (calculateDistance(this.x, this.game.circleCenterX, this.y, this.game.circleCenterY)
+      > this.game.circleClosingDistance
+    ) {
+      if (now - this.lastHealthReductionAt > 250) {
+        this.health -= 1;
+        this.lastHealthReductionAt = now;
+      }
+    }
+  }
 };
 
 var Game = function Game(){
   console.log('init');
   this.players = [];
+  this.layers = [
+    [
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    ]
+  ];
+  this.coins = [new Coin(this)];
+  this.lastCoinCreated = Date.now();
+  this.lastCircleCollapsedAt = Date.now();
+
+  this.circleClosingDistance = 500;
+  this.circleCenterX = 400;
+  this.circleCenterY = 400;
+
+  this.isStarted = false;
+  this.gameOver = false;
+  this.winnerId = null;
+}
+
+Game.prototype.isSolidTile = function isSolidTile (x, y) {
+  const startTileX = Math.floor(x / 64);
+  const startTileY = Math.floor(y / 64);
+  return this.layers[0][startTileY][startTileX] === 1;
+}
+
+Game.prototype.addCoin = function addCoin () {
+  this.coins.push(new Coin(this));
 }
 
 Game.prototype.addPlayer = function addPlayer (id) {
@@ -64,38 +145,115 @@ Game.prototype.addPlayer = function addPlayer (id) {
 }
 
 Game.prototype.update = function update() {
+  if (this.players.length === 2) {
+    this.isStarted = true;
+  }
+
+  if (!this.isStarted)
+    return;
+
+  const alivePlayerCount = this.players.filter(player => player.isDead).length;
   for (var m = 0; m < this.players.length; m++) {
     const player = this.players[m];
-    player.update();
+
+    if (alivePlayerCount === 1 && !player.isDead) {
+      this.winnerId = player.id;
+      this.gameOver = true;
+    }
+
+    if (!this.gameOver) {
+      player.update();
+    }
+  }
+
+  const now = Date.now();
+  const targetCoin = Math.floor(this.circleClosingDistance / 50);
+  if (this.coins.length < targetCoin && now - this.lastCoinCreated > 2500) {
+    console.log('adding coin');
+    this.addCoin();
+    this.lastCoinCreated = Date.now();
+  }
+
+  if (now - this.lastCircleCollapsedAt > 100) {
+    this.circleClosingDistance = Math.max(0, this.circleClosingDistance - 1);
+    this.lastCircleCollapsedAt = Date.now();
   }
 };
 
 var game = new Game();
 
 const interval = setInterval(() => {
-  game.update();
+  if (game.players.length) {
+    game.update();
+  }
 }, 1000 / 60);
 
 const updateInterval = setInterval(() => {
   io.sockets.emit('PLAYERS_UPDATE', game.players.map(player => ({
     id: player.id,
     name: player.name,
+    isDead: player.isDead,
+    health: player.health,
+    coins: player.coins,
+    medkits: player.medkits,
     x: player.x,
     y: player.y,
     type: player.type
   })));
+
+  io.sockets.emit('COINS_UPDATE', game.coins.map(coin => ({
+    x: coin.x,
+    y: coin.y,
+  })));
+
+  io.sockets.emit('CIRCLE_UPDATE', {
+    circleCenterX: game.circleCenterX,
+    circleCenterY: game.circleCenterY,
+    circleClosingDistance: game.circleClosingDistance,
+  });
+
+  if (game.gameOver) {
+    io.sockets.emit('GAME_STATE_UPDATE', {
+      gameOver: game.gameOver,
+      winnerId: game.winnerId,
+    });
+  }
 }, 1000 / 30);
 
 io.on('connection', function (socket) {
   console.log('user connected! ' + socket.id);
-  game.addPlayer(socket.id);
-  console.log('number of players: ' + game.players.length);
+  if (!game.isStarted) {
+    game.addPlayer(socket.id);
+    console.log('number of players: ' + game.players.length);
+  } else {
+    socket.disconnect(true);
+  }
+
+  socket.emit('LAYERS_UPDATE', game.layers);
 
   socket.on('disconnect', function () {
     // socket.emit('disconnected');
     game.players = game.players.filter(player => player.id !== socket.id)
     console.log('user disconnected! ' + socket.id);
     console.log('number of players: ' + game.players.length);
+  });
+
+  socket.on('USE_MATERIAL', function (data) {
+    const type = data.type;
+    const player = game.players.find(player => player.id === socket.id)
+    if (type === 'MEDKIT' && player.medkits > 0) {
+      player.medkits -= 1;
+      player.health = Math.min(100, player.health + 20);
+    }
+  });
+
+  socket.on('PURCHASE', function (data) {
+    const type = data.type;
+    const player = game.players.find(player => player.id === socket.id)
+    if (type === 'MEDKIT' && player.coins >= 50) {
+      player.medkits += 1;
+      player.coins -= 50;
+    }
   });
 
   socket.on('PLAYER_DIRECTION_UPDATE', function (data) {
