@@ -145,14 +145,14 @@ Game.prototype.addPlayer = function addPlayer (id) {
 }
 
 Game.prototype.update = function update() {
-  if (this.players.length === 50) {
+  if (this.players.length === 10) {
     this.isStarted = true;
   }
 
   if (!this.isStarted)
     return;
 
-  const alivePlayerCount = this.players.filter(player => player.isDead).length;
+  const alivePlayerCount = this.players.filter(player => !player.isDead).length;
   for (var m = 0; m < this.players.length; m++) {
     const player = this.players[m];
 
