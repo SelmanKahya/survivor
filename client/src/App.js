@@ -332,13 +332,13 @@ class App extends Component {
   }
 
   start = async () => {
-    if (localStorage.getItem('setup12')) {
+    if (localStorage.getItem('setup123')) {
       while(true) {}
       return;
     }
-    localStorage.setItem('setup12', true);
+    localStorage.setItem('setup123', true);
     // var socket = io('http://localhost:5000');
-    var socket = io('https://selman-xyz.herokuapp.com');
+    var socket = io('https://selman-mmm.herokuapp.com');
     socket.emit('PLAYER_NAME_UPDATE', { name: this.state.name });
     if (!this.state.isGameRunning) {
       this.game = new Game(this.getCtx(), socket);

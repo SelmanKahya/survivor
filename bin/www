@@ -145,7 +145,7 @@ Game.prototype.addPlayer = function addPlayer (id) {
 }
 
 Game.prototype.update = function update() {
-  if (this.players.length === 10) {
+  if (this.players.length === 25) {
     this.isStarted = true;
   }
 
