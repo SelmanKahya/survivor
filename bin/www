@@ -122,8 +122,8 @@ var Game = function Game(){
   this.lastCircleCollapsedAt = Date.now();
 
   this.circleClosingDistance = 750;
-  this.circleCenterX = 5 * 64 + Math.floor(Math.random() * 10 * 64);
-  this.circleCenterY = 3 * 64 + Math.floor(Math.random() * 6 * 64);
+  this.circleCenterX = 5 * 64 + Math.floor(Math.random() * 640);
+  this.circleCenterY = 3 * 64 + Math.floor(Math.random() * 384);
 
   this.isStarted = false;
   this.gameOver = false;
