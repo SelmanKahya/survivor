@@ -332,8 +332,8 @@ class App extends Component {
   }
 
   start = async () => {
-    var socket = io('http://localhost:5000');
-    // var socket = io('https://selman-123.herokuapp.com');
+    // var socket = io('http://localhost:5000');
+    var socket = io('https://selman-123.herokuapp.com');
     socket.emit('PLAYER_NAME_UPDATE', { name: this.state.name });
     if (!this.state.isGameRunning) {
       this.game = new Game(this.getCtx(), socket);
