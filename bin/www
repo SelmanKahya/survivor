@@ -121,9 +121,9 @@ var Game = function Game(){
   this.lastCoinCreated = Date.now();
   this.lastCircleCollapsedAt = Date.now();
 
-  this.circleClosingDistance = 500;
-  this.circleCenterX = 400;
-  this.circleCenterY = 400;
+  this.circleClosingDistance = 750;
+  this.circleCenterX = 5 * 64 + Math.floor(Math.random() * 10 * 64);
+  this.circleCenterY = 3 * 64 + Math.floor(Math.random() * 6 * 64);
 
   this.isStarted = false;
   this.gameOver = false;
@@ -145,7 +145,7 @@ Game.prototype.addPlayer = function addPlayer (id) {
 }
 
 Game.prototype.update = function update() {
-  if (this.players.length === 25) {
+  if (this.players.length === 30) {
     this.isStarted = true;
   }
 
@@ -159,6 +159,7 @@ Game.prototype.update = function update() {
     if (alivePlayerCount === 1 && !player.isDead) {
       this.winnerId = player.id;
       this.gameOver = true;
+      this.gameEndedAt = Date.now();
     }
 
     if (!this.gameOver) {
@@ -183,7 +184,9 @@ Game.prototype.update = function update() {
 var game = new Game();
 
 const interval = setInterval(() => {
-  if (game.players.length) {
+  if (game.gameOver && Date.now() - game.gameEndedAt > 10000) {
+    game = new Game();
+  } else if (game.players.length) {
     game.update();
   }
 }, 1000 / 60);
@@ -228,6 +231,12 @@ io.on('connection', function (socket) {
   } else {
     socket.disconnect(true);
   }
+
+  setInterval(() => {
+    if (game.gameOver) {
+      socket && socket.disconnect(true);
+    }
+  }, 1000);
 
   socket.emit('LAYERS_UPDATE', game.layers);
 

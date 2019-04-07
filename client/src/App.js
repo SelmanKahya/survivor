@@ -80,12 +80,26 @@ class Player {
     }
 
     if (!this.isDead) {
+      const x = (CANVAS_WIDTH / 2 - 32) + (this.x - currentPlayer.x)
+      const y = (CANVAS_HEIGHT / 2 - 32) + (this.y - currentPlayer.y)
       this.ctx.drawImage(
         // TODO user0 > use type to show different skins
         this.game.images.users[this.type], 0, 0, TILE_WIDTH, TILE_HEIGHT,
-        (CANVAS_WIDTH / 2 - 32) + (this.x - currentPlayer.x),
-        (CANVAS_HEIGHT / 2 - 32) + (this.y - currentPlayer.y),
+        x,
+        y,
         TILE_WIDTH, TILE_HEIGHT);
+
+      // RENDER HEALTH BAR
+      this.ctx.font = '18px comic sans';
+      this.ctx.fillStyle = 'black';
+      this.ctx.textAlign = "center";
+      this.ctx.fillText(this.name, x + TILE_WIDTH / 2, y + 10);
+
+      this.ctx.fillStyle = 'lightred';
+      this.ctx.fillRect(x + 16, y + 50, 32, 12)
+      this.ctx.fillStyle = 'lightyellow';
+      this.ctx.fillRect(x + 16 + 2, y + 52, 28 * (this.health / 100), 8)
+      //
     }
   };
 };
@@ -302,6 +316,7 @@ class Game {
     }
 
     this.ctx.beginPath();
+    this.ctx.fillStyle = 'lightred';
     this.ctx.arc(
       (CANVAS_WIDTH / 2 - 32) + (this.circleCenterX - currentPlayer.x),
       (CANVAS_HEIGHT / 2 - 32) + (this.circleCenterY - currentPlayer.y),
@@ -332,20 +347,26 @@ class App extends Component {
   }
 
   start = async () => {
-    if (localStorage.getItem('setup1234')) {
-      while(true) {}
-      return;
-    }
-    localStorage.setItem('setup1234', true);
+    // if (localStorage.getItem('setup1234')) {
+    //   while(true) {}
+    //   return;
+    // }
+    // localStorage.setItem('setup1234', true);
+    var socket = io('https://selman-zzz.herokuapp.com/');
     // var socket = io('http://localhost:5000');
-    var socket = io('https://selman-nnn.herokuapp.com');
+    socket.on('disconnect', () => {
+      this.setState({isGameRunning: false});
+      setTimeout(window.location.reload, 10000);
+    });
+
+    // var socket = io('https://selman-nnn.herokuapp.com');
     socket.emit('PLAYER_NAME_UPDATE', { name: this.state.name });
     if (!this.state.isGameRunning) {
       this.game = new Game(this.getCtx(), socket);
       await this.game.init();
       this.loop();
     }
-    this.setState(state => ({isGameRunning: !state.isGameRunning}));
+    this.setState(state => ({nameEntered: true, isGameRunning: !state.isGameRunning}));
   }
 
   loop = () => {
@@ -372,13 +393,13 @@ class App extends Component {
 
     return (
       <div style={{height: '100%'}}>
-        {!this.state.isGameRunning ? (
+        {!this.state.nameEntered && (
           <div>
             <input type="text" onChange={(evt) => this.setState({name: evt.target.value.substring(0, 6).toLowerCase()})} />
             <button disabled={!this.state.name} onClick={this.start}>START!</button>
           </div>
-        ) : null}
-        <div style={{height: '100%', display: this.state.isGameRunning ? 'flex' : 'none', justifyContent: 'center', alignItems: 'center', backgroundColor: 'black'}}>
+        )}
+        <div style={{height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: 'black'}}>
           <canvas ref={this.canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT}>
           </canvas>
         </div>
